@@ -61,6 +61,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
     height: 60,
+    marginBottom: 16,
   },
   tabBarLabel: {
     fontSize: FontSize.xs,
