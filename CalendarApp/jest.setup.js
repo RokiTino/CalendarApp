@@ -1,30 +1,5 @@
 // Jest setup file for React Native
 
-// Mock React Native modules
-jest.mock('react-native', () => {
-  const RN = jest.requireActual('react-native');
-  return {
-    ...RN,
-    NativeModules: {
-      ...RN.NativeModules,
-      RNFBAppModule: {
-        NATIVE_FIREBASE_APPS: [],
-        FIREBASE_RAW_JSON: '{}',
-        addListener: jest.fn(),
-        removeListeners: jest.fn(),
-      },
-      RNFBAuthModule: {
-        addListener: jest.fn(),
-        removeListeners: jest.fn(),
-      },
-      RNFBFirestoreModule: {
-        addListener: jest.fn(),
-        removeListeners: jest.fn(),
-      },
-    },
-  };
-});
-
 // Mock Firebase Auth
 jest.mock('@react-native-firebase/auth', () => {
   const mockUser = {
@@ -74,15 +49,13 @@ jest.mock('@react-native-firebase/firestore', () => {
 });
 
 // Mock react-native-vector-icons
-jest.mock('react-native-vector-icons/Ionicons', () => 'Icon');
-jest.mock('react-native-vector-icons/MaterialIcons', () => 'Icon');
-jest.mock('react-native-vector-icons/FontAwesome', () => 'Icon');
+jest.mock('react-native-vector-icons/Ionicons', () => 'Icon', { virtual: true });
+jest.mock('react-native-vector-icons/MaterialIcons', () => 'Icon', { virtual: true });
+jest.mock('react-native-vector-icons/FontAwesome', () => 'Icon', { virtual: true });
 
 // Mock @react-navigation
 jest.mock('@react-navigation/native', () => {
-  const actualNav = jest.requireActual('@react-navigation/native');
   return {
-    ...actualNav,
     useNavigation: () => ({
       navigate: jest.fn(),
       goBack: jest.fn(),
@@ -92,12 +65,41 @@ jest.mock('@react-navigation/native', () => {
       params: {},
     }),
     useFocusEffect: jest.fn(),
+    NavigationContainer: ({ children }) => children,
   };
 });
 
+jest.mock('@react-navigation/native-stack', () => ({
+  createNativeStackNavigator: () => ({
+    Navigator: ({ children }) => children,
+    Screen: ({ children }) => children,
+  }),
+}));
+
+jest.mock('@react-navigation/bottom-tabs', () => ({
+  createBottomTabNavigator: () => ({
+    Navigator: ({ children }) => children,
+    Screen: ({ children }) => children,
+  }),
+}));
+
 // Silence console warnings in tests
-global.console = {
-  ...console,
-  warn: jest.fn(),
-  error: jest.fn(),
+const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+
+console.error = (...args) => {
+  if (
+    typeof args[0] === 'string' &&
+    (args[0].includes('Warning:') || args[0].includes('TurboModuleRegistry'))
+  ) {
+    return;
+  }
+  originalConsoleError.apply(console, args);
+};
+
+console.warn = (...args) => {
+  if (typeof args[0] === 'string' && args[0].includes('Warning:')) {
+    return;
+  }
+  originalConsoleWarn.apply(console, args);
 };
