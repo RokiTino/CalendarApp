@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import ReactNativeBiometrics, { BiometryTypes } from 'react-native-biometrics';
 import { AuthStackParamList } from '../../types';
 import { Button, Input } from '../../components/common';
 import { useAuth } from '../../context/AuthContext';
-import { Colors, Spacing, FontSize, FontWeight } from '../../theme';
+import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '../../theme';
 import { validateEmail, validatePassword } from '../../utils/validation';
 
 type SignInScreenProps = {
@@ -28,6 +29,43 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [biometryType, setBiometryType] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkBiometrics = async () => {
+      const rnBiometrics = new ReactNativeBiometrics();
+      const { available, biometryType: type } = await rnBiometrics.isSensorAvailable();
+      if (available && type) {
+        setBiometryType(type);
+      }
+    };
+    checkBiometrics();
+  }, []);
+
+  const getBiometricLabel = () => {
+    switch (biometryType) {
+      case BiometryTypes.FaceID:
+        return 'Sign In with Face ID';
+      case BiometryTypes.TouchID:
+        return 'Sign In with Touch ID';
+      case BiometryTypes.Biometrics:
+        return 'Sign In with Fingerprint';
+      default:
+        return 'Sign In with Biometrics';
+    }
+  };
+
+  const getBiometricIcon = () => {
+    switch (biometryType) {
+      case BiometryTypes.FaceID:
+        return '👤';
+      case BiometryTypes.TouchID:
+      case BiometryTypes.Biometrics:
+        return '👆';
+      default:
+        return '🔐';
+    }
+  };
 
   const validateForm = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
@@ -129,14 +167,15 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
               style={styles.signInButton}
             />
 
-            {isBiometricsEnabled && (
-              <Button
-                title="Sign In with Biometrics"
-                onPress={handleBiometricSignIn}
-                variant="outline"
-                fullWidth
+            {isBiometricsEnabled && biometryType && (
+              <TouchableOpacity
                 style={styles.biometricButton}
-              />
+                onPress={handleBiometricSignIn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.biometricIcon}>{getBiometricIcon()}</Text>
+                <Text style={styles.biometricButtonText}>{getBiometricLabel()}</Text>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -192,7 +231,25 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   biometricButton: {
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  biometricIcon: {
+    fontSize: 24,
+    marginRight: Spacing.sm,
+  },
+  biometricButtonText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.primary,
   },
   footer: {
     flexDirection: 'row',

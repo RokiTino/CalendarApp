@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ReactNativeBiometrics, { BiometryTypes } from 'react-native-biometrics';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/common';
 import { Colors, Spacing, FontSize, FontWeight } from '../../theme';
@@ -21,6 +23,62 @@ export const ProfileScreen: React.FC = () => {
     isBiometricsEnabled,
     setBiometricsEnabled,
   } = useAuth();
+
+  const [biometryType, setBiometryType] = useState<string | null>(null);
+  const [isCheckingBiometrics, setIsCheckingBiometrics] = useState(true);
+
+  useEffect(() => {
+    const checkBiometrics = async () => {
+      try {
+        const rnBiometrics = new ReactNativeBiometrics();
+        const { available, biometryType: type } = await rnBiometrics.isSensorAvailable();
+        if (available && type) {
+          setBiometryType(type);
+        }
+      } finally {
+        setIsCheckingBiometrics(false);
+      }
+    };
+    checkBiometrics();
+  }, []);
+
+  const getBiometryLabel = () => {
+    switch (biometryType) {
+      case BiometryTypes.FaceID:
+        return 'Face ID';
+      case BiometryTypes.TouchID:
+        return 'Touch ID';
+      case BiometryTypes.Biometrics:
+        return 'Fingerprint';
+      default:
+        return 'Biometric Login';
+    }
+  };
+
+  const getBiometryDescription = () => {
+    switch (biometryType) {
+      case BiometryTypes.FaceID:
+        return 'Use Face ID to sign in quickly';
+      case BiometryTypes.TouchID:
+        return 'Use Touch ID to sign in quickly';
+      case BiometryTypes.Biometrics:
+        return 'Use fingerprint to sign in quickly';
+      default:
+        return 'Use biometrics to sign in quickly';
+    }
+  };
+
+  const getBiometryIcon = () => {
+    switch (biometryType) {
+      case BiometryTypes.FaceID:
+        return '👤';
+      case BiometryTypes.TouchID:
+      case BiometryTypes.Biometrics:
+        return '👆';
+      default:
+        return '🔐';
+    }
+  };
 
   const handleLogout = useCallback(() => {
     Alert.alert(
@@ -38,25 +96,44 @@ export const ProfileScreen: React.FC = () => {
   }, [logout]);
 
   const handleBiometricsToggle = useCallback(
-    (value: boolean) => {
+    async (value: boolean) => {
       if (value) {
-        // TODO: Verify biometrics are available and enroll
-        Alert.alert(
-          'Enable Biometrics',
-          'Would you like to enable biometric login for faster access?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Enable',
-              onPress: () => setBiometricsEnabled(true),
-            },
-          ]
-        );
+        if (!biometryType) {
+          Alert.alert(
+            'Biometrics Unavailable',
+            'Your device does not support biometric authentication or it has not been set up.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
+        // Verify biometrics work before enabling
+        try {
+          const rnBiometrics = new ReactNativeBiometrics();
+          const { success } = await rnBiometrics.simplePrompt({
+            promptMessage: `Confirm ${getBiometryLabel()} to enable`,
+          });
+
+          if (success) {
+            setBiometricsEnabled(true);
+            Alert.alert(
+              'Success',
+              `${getBiometryLabel()} has been enabled for sign in.`,
+              [{ text: 'OK' }]
+            );
+          }
+        } catch {
+          Alert.alert(
+            'Verification Failed',
+            'Could not verify your biometrics. Please try again.',
+            [{ text: 'OK' }]
+          );
+        }
       } else {
         setBiometricsEnabled(false);
       }
     },
-    [setBiometricsEnabled]
+    [setBiometricsEnabled, biometryType, getBiometryLabel]
   );
 
   return (
@@ -86,22 +163,44 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Settings Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
+          <Text style={styles.sectionTitle}>Security</Text>
 
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Biometric Login</Text>
-              <Text style={styles.settingDescription}>
-                Use fingerprint or Face ID to sign in
-              </Text>
+          {isCheckingBiometrics ? (
+            <View style={styles.settingItem}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.loadingText}>Checking biometric availability...</Text>
             </View>
-            <Switch
-              value={isBiometricsEnabled}
-              onValueChange={handleBiometricsToggle}
-              trackColor={{ false: Colors.border, true: Colors.primaryLight }}
-              thumbColor={isBiometricsEnabled ? Colors.primary : Colors.white}
-            />
-          </View>
+          ) : biometryType ? (
+            <View style={styles.settingItem}>
+              <View style={styles.settingIconContainer}>
+                <Text style={styles.settingIcon}>{getBiometryIcon()}</Text>
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>{getBiometryLabel()}</Text>
+                <Text style={styles.settingDescription}>
+                  {getBiometryDescription()}
+                </Text>
+              </View>
+              <Switch
+                value={isBiometricsEnabled}
+                onValueChange={handleBiometricsToggle}
+                trackColor={{ false: Colors.border, true: Colors.primaryLight }}
+                thumbColor={isBiometricsEnabled ? Colors.primary : Colors.white}
+              />
+            </View>
+          ) : (
+            <View style={styles.settingItem}>
+              <View style={styles.settingIconContainer}>
+                <Text style={styles.settingIconDisabled}>🔐</Text>
+              </View>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabelDisabled}>Biometric Login</Text>
+                <Text style={styles.settingDescription}>
+                  Not available on this device
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Account Section */}
@@ -216,8 +315,23 @@ const styles = StyleSheet.create({
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
+  },
+  settingIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  settingIcon: {
+    fontSize: 20,
+  },
+  settingIconDisabled: {
+    fontSize: 20,
+    opacity: 0.5,
   },
   settingInfo: {
     flex: 1,
@@ -228,10 +342,20 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.medium,
     color: Colors.textPrimary,
   },
+  settingLabelDisabled: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.medium,
+    color: Colors.textLight,
+  },
   settingDescription: {
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  loadingText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.sm,
   },
   menuItem: {
     flexDirection: 'row',
