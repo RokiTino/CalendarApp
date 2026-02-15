@@ -4,6 +4,8 @@
  * This file contains Firebase service implementations for authentication,
  * Firestore database, and biometrics.
  *
+ * UPDATED: Now supports backend API authentication via backendAuthService
+ *
  * Required Firebase packages:
  * - @react-native-firebase/app
  * - @react-native-firebase/auth
@@ -15,9 +17,10 @@
 
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import { backendAuthService } from './backend';
 
 // =============================================================================
-// AUTH SERVICE
+// AUTH SERVICE - Uses Backend API
 // =============================================================================
 
 export interface FirebaseUser {
@@ -37,34 +40,35 @@ export const authService = {
   },
 
   /**
-   * Sign in with email and password
+   * Sign in with email and password via backend API
    */
   signIn: async (email: string, password: string): Promise<FirebaseUser> => {
-    const userCredential = await auth().signInWithEmailAndPassword(email, password);
+    const response = await backendAuthService.login(email, password);
     return {
-      uid: userCredential.user.uid,
-      email: userCredential.user.email,
-      displayName: userCredential.user.displayName,
+      uid: response.user.id,
+      email: response.user.email,
+      displayName: response.user.displayName || null,
     };
   },
 
   /**
-   * Create a new user account
+   * Create a new user account via backend API
    */
   signUp: async (email: string, password: string): Promise<FirebaseUser> => {
-    const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+    const response = await backendAuthService.register(email, password);
     return {
-      uid: userCredential.user.uid,
-      email: userCredential.user.email,
-      displayName: userCredential.user.displayName,
+      uid: response.user.id,
+      email: response.user.email,
+      displayName: response.user.displayName || null,
     };
   },
 
   /**
    * Sign out the current user
+   * Note: We use backend auth only, so just call backend logout
    */
   signOut: async (): Promise<void> => {
-    await auth().signOut();
+    await backendAuthService.logout();
   },
 
   /**
@@ -85,14 +89,14 @@ export const authService = {
    */
   onAuthStateChanged: (callback: (user: FirebaseUser | null) => void): (() => void) => {
     return auth().onAuthStateChanged((user: { uid: string; email: string | null; displayName: string | null } | null) => {
-      if (!user) {
-        callback(null);
-      } else {
+      if (user) {
         callback({
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
         });
+      } else {
+        callback(null);
       }
     });
   },
