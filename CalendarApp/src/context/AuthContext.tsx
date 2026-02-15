@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   ReactNode,
 } from 'react';
 import ReactNativeBiometrics from 'react-native-biometrics';
@@ -47,12 +48,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isBiometricsEnabled, setIsBiometricsEnabled] = useState(false);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
+    console.log('[Auth] Login attempt for:', credentials.email);
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
       const firebaseUser = await authService.signIn(credentials.email, credentials.password);
       const user = mapFirebaseUserToUser(firebaseUser);
 
+      console.log('[Auth] Login successful for user:', user.email);
       setState({
         user,
         isAuthenticated: true,
@@ -60,6 +63,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         error: null,
       });
     } catch (error: any) {
+      console.error('[Auth] Login error:', error.message);
       let errorMessage = 'Login failed';
       if (error.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email';
@@ -83,12 +87,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const register = useCallback(async (credentials: RegisterCredentials) => {
+    console.log('[Auth] Registration attempt for:', credentials.email);
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
       const firebaseUser = await authService.signUp(credentials.email, credentials.password);
       const user = mapFirebaseUserToUser(firebaseUser);
 
+      console.log('[Auth] Registration successful for user:', user.email);
       setState({
         user,
         isAuthenticated: true,
@@ -96,6 +102,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         error: null,
       });
     } catch (error: any) {
+      console.error('[Auth] Registration error:', error.message);
       let errorMessage = 'Registration failed';
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'An account with this email already exists';
@@ -117,23 +124,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const logout = useCallback(async () => {
+    console.log('[Auth] Logout initiated');
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
       await authService.signOut();
-
+      console.log('[Auth] Logout successful');
+    } catch (error: any) {
+      console.error('[Auth] Logout error:', error.message);
+      // Continue with logout even if signOut fails
+    } finally {
+      // Always clear auth state regardless of signOut result
       setState({
         user: null,
         isAuthenticated: false,
         isLoading: false,
         error: null,
       });
-    } catch (error: any) {
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: error.message || 'Logout failed',
-      }));
     }
   }, []);
 
@@ -190,14 +197,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const setBiometricsEnabled = useCallback((enabled: boolean) => {
     setIsBiometricsEnabled(enabled);
-    // TODO: Persist this setting to AsyncStorage
+    // Note: In production, persist this setting to AsyncStorage
   }, []);
 
   // Listen to Firebase auth state changes
   useEffect(() => {
+    console.log('[Auth] Setting up auth state listener');
     const unsubscribe = authService.onAuthStateChanged((firebaseUser) => {
       if (firebaseUser) {
         const user = mapFirebaseUserToUser(firebaseUser);
+        console.log('[Auth] Auth state changed - User logged in:', user.email);
         setState({
           user,
           isAuthenticated: true,
@@ -205,6 +214,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           error: null,
         });
       } else {
+        console.log('[Auth] Auth state changed - User logged out');
         setState({
           user: null,
           isAuthenticated: false,
@@ -218,16 +228,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  const value: AuthContextType = {
-    ...state,
-    login,
-    register,
-    logout,
-    loginWithBiometrics,
-    clearError,
-    setBiometricsEnabled,
-    isBiometricsEnabled,
-  };
+  const value: AuthContextType = useMemo(
+    () => ({
+      ...state,
+      login,
+      register,
+      logout,
+      loginWithBiometrics,
+      clearError,
+      setBiometricsEnabled,
+      isBiometricsEnabled,
+    }),
+    [state, login, register, logout, loginWithBiometrics, clearError, setBiometricsEnabled, isBiometricsEnabled]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
