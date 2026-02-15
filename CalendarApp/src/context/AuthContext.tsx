@@ -6,6 +6,7 @@ import React, {
   useEffect,
   ReactNode,
 } from 'react';
+import ReactNativeBiometrics from 'react-native-biometrics';
 import { AuthState, User, LoginCredentials, RegisterCredentials } from '../types';
 import { authService, FirebaseUser } from '../services/firebase';
 
@@ -140,10 +141,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // TODO: Implement biometric authentication
-      // This should check if user has biometrics enabled
-      // and retrieve stored credentials
-      throw new Error('Biometrics not configured');
+      const rnBiometrics = new ReactNativeBiometrics();
+
+      // Check if biometrics are available
+      const { available } = await rnBiometrics.isSensorAvailable();
+      if (!available) {
+        throw new Error('Biometrics not available on this device');
+      }
+
+      // Prompt for biometric authentication
+      const { success } = await rnBiometrics.simplePrompt({
+        promptMessage: 'Confirm your identity',
+        cancelButtonText: 'Cancel',
+      });
+
+      if (!success) {
+        throw new Error('Biometric authentication cancelled');
+      }
+
+      // Note: In a production app, you would retrieve stored credentials
+      // from secure storage (Keychain/Keystore) and use them to authenticate.
+      // For now, this verifies the biometric but requires stored credentials
+      // to complete the login flow.
+
+      // For demo purposes, we'll just verify the biometric succeeded
+      // The actual credential storage/retrieval would be implemented with
+      // react-native-keychain or similar secure storage solution
+
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+      }));
+
+      throw new Error('Please set up biometric login after signing in with your password');
     } catch (error) {
       setState((prev) => ({
         ...prev,
